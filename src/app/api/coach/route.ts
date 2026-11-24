@@ -188,8 +188,11 @@ export async function POST(req: NextRequest) {
         { role: "user" as const, content: message },
       ];
 
+      const firstTask = Boolean(body.csAnswer?.trim() && !body.opsAnswer?.trim() && !body.chosenRole);
       const reply = await chatCompletion({
-        system: FOLLOWUP_SYSTEM,
+        system: firstTask
+          ? "Coach the customer message in this payroll exercise. Give one observation grounded in its exact words and one specific question about investigating the incident. Keep it to two sentences. Only discuss the submitted work; do not infer preferences or recommend a career."
+          : FOLLOWUP_SYSTEM + " Only reference preferences explicitly supplied by this user. The learner selects and saves a direction using the role buttons.",
         messages,
         maxTokens: 280,
       });
