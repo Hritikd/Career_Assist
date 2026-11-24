@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import VoiceButton from "./VoiceButton";
 import {
   AppState,
-  ChosenRole,
   ExerciseVersion,
   INCIDENT,
   Preference,
@@ -30,6 +29,7 @@ export default function RoleTryApp() {
   const [hydrated, setHydrated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [firstNote, setFirstNote] = useState("");
   const [followup, setFollowup] = useState("");
   const [savedFlash, setSavedFlash] = useState(false);
   const submitLock = useRef(false);
@@ -99,18 +99,7 @@ export default function RoleTryApp() {
   async function sendFollowup() {
     if (!state || !followup.trim()) return;
     const message = followup.trim();
-    setFollowup("");
-    const history = state.conversation.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    update((prev) => ({
-      ...prev,
-      conversation: [
-        ...prev.conversation,
-        { role: "user", content: message, at: new Date().toISOString() },
-      ],
-    }));
+    const history = state.conversation.map(({ role, content }) => ({ role, content }));
     const data = await callCoach({
       mode: "followup",
       message,
@@ -123,32 +112,12 @@ export default function RoleTryApp() {
     });
     if (!data?.reply) return;
 
-    const lower = message.toLowerCase();
-    let nextRole: ChosenRole = state.chosenRole;
-    if (
-      lower.includes("operations") ||
-      lower.includes("investigate") ||
-      (lower.includes("fewer") && lower.includes("call"))
-    ) {
-      nextRole = "support_operations";
-    } else if (
-      lower.includes("customer success") ||
-      lower.includes("help the customer")
-    ) {
-      nextRole = "customer_success";
-    }
-
+    setFollowup("");
     update((prev) => ({
       ...prev,
-      chosenRole: nextRole,
-      preference:
-        nextRole === "support_operations"
-          ? "investigate_pattern"
-          : nextRole === "customer_success"
-            ? "help_customer"
-            : prev.preference,
       conversation: [
         ...prev.conversation,
+        { role: "user", content: message, at: new Date().toISOString() },
         { role: "assistant", content: data.reply, at: new Date().toISOString() },
       ],
     }));
@@ -178,6 +147,8 @@ export default function RoleTryApp() {
   }
 
   function resetAll() {
+    setFirstNote("");
+    setError(null);
     clearState();
     setState(emptyState());
     setFollowup("");
@@ -371,6 +342,21 @@ export default function RoleTryApp() {
           {state.step === "ops-task" && (
             <>
               <h1>Support Operations</h1>
+              <div className="card-obs">
+                <strong>Your message to the shop owner</strong>
+                <p className="quote">{state.csAnswer}</p>
+                <p>Now switch seats. Six shops mentioned the date format. What would you check before telling the owner that changing it will fix the upload?</p>
+                {firstNote ? <p aria-live="polite">{firstNote}</p> : (
+                  <button className="btn secondary" disabled={busy} onClick={async () => {
+                    const result = await callCoach({
+                      mode: "followup", background: state.background, csAnswer: state.csAnswer,
+                      message: "Give one specific coaching observation about my customer message, then one concrete investigation question that follows from it. The incident: " + INCIDENT
+                    });
+                    if (result?.reply) setFirstNote(result.reply);
+                  }}>{busy ? "Reading your answer…" : "Get feedback on my first answer"}</button>
+                )}
+                {error && <p role="alert">{error}</p>}
+              </div>
               <div className="note">
                 <label className="label" htmlFor="ops">
                   Investigation note
@@ -394,7 +380,7 @@ export default function RoleTryApp() {
               <div className="actions">
                 <button
                   className="btn"
-                  disabled={!state.opsAnswer.trim()}
+                  disabled={!state.opsAnswer.trim() || busy}
                   onClick={() => update({ step: "preference" })}
                 >
                   Continue
@@ -508,6 +494,7 @@ export default function RoleTryApp() {
                 ))}
               </div>
               <textarea
+                disabled={busy}
                 value={followup}
                 onChange={(e) => setFollowup(e.target.value)}
                 placeholder='e.g. “I’m good at talking to customers, but I want fewer customer calls.”'
@@ -638,10 +625,9 @@ export default function RoleTryApp() {
 
           {state.step === "done" && (
             <>
-              <h1>Saved on this device</h1>
+              <h1>Your next step</h1>
               <p className="lede">
-                You can revise the draft, compare versions, or reset when you are
-                done showing a reviewer.
+                Read the feedback below. Try one change to your draft, or revisit how the two roles felt. Your work is saved on this device.
               </p>
               {state.exerciseVersions.slice(-1).map((v) => (
                 <div key={v.id}>
@@ -656,8 +642,8 @@ export default function RoleTryApp() {
                 >
                   Revise draft
                 </button>
-                <button className="btn secondary" onClick={resetAll}>
-                  Reset this device
+                <button className="btn secondary" onClick={() => update({ step: "compare" })}>
+                  Revisit my role choice
                 </button>
               </div>
             </>
