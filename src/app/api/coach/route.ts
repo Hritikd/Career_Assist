@@ -164,6 +164,11 @@ export async function POST(req: NextRequest) {
           "Spend five minutes on one role exercise and notice whether you want to continue.",
       };
 
+      const updatePromise = csAnswer.match(/\b(?:call|update|check back|follow up)\b[^.!?]{0,35}?\b(?:by|at|within|in)\s+(?:noon|midnight|\d{1,2}(?::\d{2})?(?:\s*(?:am|pm|minutes?|hours?))?)\b/i);
+      if (updatePromise && !/\b(?:fix|fixed|resolved|guarantee)\b/i.test(csAnswer)) {
+        feedback.csQuote = updatePromise[0];
+        feedback.csObservation = "You gave the owner a time to expect another update while the cause is being investigated.";
+      }
       if (!feedback.csQuote && csAnswer.trim().length < 40) {
         feedback.csObservation =
           "Your Customer Success answer is thin — add urgency, one question, or a concrete update time.";
