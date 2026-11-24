@@ -11,6 +11,7 @@ import {
   FOLLOWUP_SYSTEM,
   compareUserPrompt,
   exerciseSystem,
+  preferenceLabel,
 } from "@/lib/prompts";
 
 export const runtime = "nodejs";
@@ -105,6 +106,16 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const declined = /^(?:i (?:do not|don.t) know|no idea|idk|unsure|skip|not sure)[.!? ]*$/i;
+      if (declined.test(csAnswer.trim()) && declined.test(opsAnswer.trim())) {
+        return NextResponse.json({ feedback: {
+          csObservation: "Try just the first line you would send to someone whose payroll is due tomorrow.",
+          opsObservation: "What would you compare between one failed upload and one successful upload?",
+          csQuote: null, opsQuote: null, preferenceNote: preferenceLabel(preference),
+          gap: "There is too little work here to tell which task you would enjoy.",
+          testIdea: "Pick the easier prompt below. Use Revise my answers to add one sentence, then compare again."
+        } });
+      }
       const raw = await chatCompletion({
         system: COMPARE_SYSTEM,
         messages: [
@@ -175,7 +186,7 @@ export async function POST(req: NextRequest) {
         `Background: ${clampText(body.background, 1500) || "(none)"}`,
         `CS answer: ${clampText(body.csAnswer, 1500)}`,
         `Ops answer: ${clampText(body.opsAnswer, 1500)}`,
-        `Preference: ${clampText(body.preference, 80)}`,
+        `Preference: ${preferenceLabel(clampText(body.preference, 80))}`,
         `Chosen role: ${body.chosenRole || "not chosen"}`,
       ].join("\n");
 
@@ -191,7 +202,7 @@ export async function POST(req: NextRequest) {
       const firstTask = Boolean(body.csAnswer?.trim() && !body.opsAnswer?.trim() && !body.chosenRole);
       const reply = await chatCompletion({
         system: firstTask
-          ? "Coach the customer message in this payroll exercise. Give one observation grounded in its exact words and one specific question about investigating the incident. Keep it to two sentences. Only discuss the submitted work; do not infer preferences or recommend a career."
+          ? "Coach the customer message in this payroll exercise. Quote one exact phrase, explain how it helps or where it risks misleading the owner, then ask one concrete diagnostic question about failed versus successful uploads. A promised update time is not a promised resolution. If the learner requests error text, acknowledge that request; never fault them for not already having the answer. Keep it to two sentences. Only discuss the submitted work; do not infer preferences or recommend a career."
           : FOLLOWUP_SYSTEM + " Only reference preferences explicitly supplied by this user. The learner selects and saves a direction using the role buttons.",
         messages,
         maxTokens: 280,

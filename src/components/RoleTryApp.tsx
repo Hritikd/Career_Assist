@@ -434,13 +434,14 @@ export default function RoleTryApp() {
             <>
               <h1>What your answers suggest</h1>
               <div className="feedback">
+                <div className="card-obs"><strong>What to try next</strong><p>{state.compareFeedback.testIdea}</p></div>
                 <div className="card-obs cs">
                   <strong>Customer Success</strong>
                   <p>{state.compareFeedback.csObservation}</p>
                   {state.compareFeedback.csQuote ? (
                     <p className="quote">“{state.compareFeedback.csQuote}”</p>
                   ) : null}
-                  <div className="user-words">{state.csAnswer}</div>
+                  <details><summary>Your full customer message</summary><p>{state.csAnswer}</p></details>
                 </div>
                 <div className="card-obs ops">
                   <strong>Support Operations</strong>
@@ -448,7 +449,7 @@ export default function RoleTryApp() {
                   {state.compareFeedback.opsQuote ? (
                     <p className="quote">“{state.compareFeedback.opsQuote}”</p>
                   ) : null}
-                  <div className="user-words">{state.opsAnswer}</div>
+                  <details><summary>Your full investigation note</summary><p>{state.opsAnswer}</p></details>
                 </div>
                 <div className="card-obs">
                   <strong>Preference & background</strong>
@@ -457,11 +458,12 @@ export default function RoleTryApp() {
                 <div className="card-obs">
                   <strong>Gap to test</strong>
                   <p>{state.compareFeedback.gap}</p>
-                  <p className="muted">{state.compareFeedback.testIdea}</p>
+                  
                 </div>
               </div>
 
-              <h2 style={{ marginTop: 18 }}>Explore a role</h2>
+              <button className="btn secondary" onClick={() => { setFirstNote(""); setError(null); update({ step: "cs-task", conversation: [] }); }}>Revise my answers</button>
+              <h2 style={{ marginTop: 18 }}>Which role will you practise?</h2>
               <div className="actions">
                 <button
                   className="btn"
