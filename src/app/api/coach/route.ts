@@ -34,7 +34,7 @@ const recent = new Map<string, number>();
 function rateLimit(ip: string): boolean {
   const now = Date.now();
   const last = recent.get(ip) || 0;
-  if (now - last < 900) return false;
+  if (now - last < 400) return false;
   recent.set(ip, now);
   if (recent.size > 500) {
     for (const [k, v] of recent) {
