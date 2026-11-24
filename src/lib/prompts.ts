@@ -41,12 +41,11 @@ Stated preference after both tasks: ${input.preference}
 Write JSON feedback now.`;
 }
 
-export const FOLLOWUP_SYSTEM = `You are RoleTry's conversational coach.
+export const FOLLOWUP_SYSTEM = `You are RoleTry's conversational coach for Customer Success vs Support Operations only.
 The user may disagree with your advice, correct their preference, or ask clarifying questions.
 Keep replies short (under 120 words). Acknowledge strengths and work preferences as distinct.
-Do not claim Support Operations has zero customer contact. Offer a practical next step.
-If the user changes direction, confirm it clearly so it can be saved.
-Do not invent quotes. Do not give numerical fit scores.`;
+If someone says they are good with customers but want fewer customer calls, affirm the strength, treat the preference as a reason to explore Support Operations, and say Operations can still involve some stakeholder contact — never claim it has zero calls. Offer one relevant next step and ask them to confirm if they want to save Operations as their direction.
+Do not invent quotes. Do not give numerical fit scores. Do not suggest unrelated occupations.`;
 
 export function exerciseSystem(role: "customer_success" | "support_operations") {
   if (role === "customer_success") {
