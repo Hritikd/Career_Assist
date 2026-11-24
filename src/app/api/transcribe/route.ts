@@ -11,6 +11,15 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof Blob)) {
       return NextResponse.json({ error: "Audio file required." }, { status: 400 });
     }
+    if (file.size < 500) {
+      return NextResponse.json(
+        {
+          error: "Recording was too short or empty. Tap to talk, speak, then stop.",
+          code: "empty_audio",
+        },
+        { status: 400 }
+      );
+    }
     if (file.size > 3_500_000) {
       return NextResponse.json(
         { error: "Audio too large. Keep recordings under 20 seconds." },
@@ -24,9 +33,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ transcript });
   } catch (err) {
     if (err instanceof SarvamError) {
+      const status =
+        err.status >= 400 && err.status < 600 ? err.status : 502;
       return NextResponse.json(
         { error: err.message, code: err.code },
-        { status: err.status }
+        { status }
       );
     }
     return NextResponse.json(

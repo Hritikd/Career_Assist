@@ -63,18 +63,24 @@ export async function chatCompletion(opts: {
 
     const data = (await res.json().catch(() => ({}))) as {
       choices?: { message?: { content?: string | null } }[];
-      error?: { message?: string; code?: string };
+      error?: { message?: string; code?: string } | string;
     };
 
     if (!res.ok) {
-      const msg =
-        data.error?.message ||
-        (res.status === 403
-          ? "Sarvam authorization failed."
-          : res.status === 429
-            ? "Sarvam rate limit reached. Please retry shortly."
-            : `Sarvam request failed (${res.status}).`);
-      throw new SarvamError(msg, res.status, data.error?.code || "http_error");
+      const errMsg =
+        typeof data.error === "string"
+          ? data.error
+          : data.error?.message ||
+            (res.status === 403
+              ? "Sarvam authorization failed."
+              : res.status === 429
+                ? "Sarvam rate limit reached. Please retry shortly."
+                : `Sarvam request failed (${res.status}).`);
+      throw new SarvamError(
+        errMsg,
+        res.status,
+        (typeof data.error === "object" && data.error?.code) || "http_error"
+      );
     }
 
     const content = data.choices?.[0]?.message?.content;
@@ -105,13 +111,39 @@ export async function chatCompletion(opts: {
   }
 }
 
+function extensionFor(filename: string, mime: string): string {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".wav") || lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".ogg") || lower.endsWith(".flac")) {
+    return filename;
+  }
+  if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac")) return "recording.m4a";
+  if (mime.includes("ogg")) return "recording.ogg";
+  if (mime.includes("mpeg") || mime.includes("mp3")) return "recording.mp3";
+  if (mime.includes("wav")) return "recording.wav";
+  return "recording.webm";
+}
+
 export async function transcribeAudio(file: File | Blob, filename: string) {
   const key = getKey();
+  const mime = file.type || "application/octet-stream";
+  const safeName = extensionFor(filename || "recording.webm", mime);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (bytes.byteLength < 500) {
+    throw new SarvamError(
+      "Recording was too short or empty. Tap to talk, speak, then stop.",
+      400,
+      "empty_audio"
+    );
+  }
+
   const form = new FormData();
-  form.append("file", file, filename);
+  form.append(
+    "file",
+    new Blob([bytes], { type: mime || "audio/webm" }),
+    safeName
+  );
   form.append("model", "saaras:v4");
   form.append("mode", "transcribe");
-  form.append("language_code", "unknown");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -125,18 +157,24 @@ export async function transcribeAudio(file: File | Blob, filename: string) {
     });
     const data = (await res.json().catch(() => ({}))) as {
       transcript?: string;
-      error?: { message?: string };
+      error?: { message?: string } | string;
     };
     if (!res.ok) {
+      const msg =
+        typeof data.error === "string"
+          ? data.error
+          : data.error?.message || `Transcription failed (${res.status}).`;
+      throw new SarvamError(msg, res.status);
+    }
+    const transcript = (data.transcript || "").trim();
+    if (!transcript) {
       throw new SarvamError(
-        data.error?.message || `Transcription failed (${res.status}).`,
-        res.status
+        "No speech detected. Try again closer to the mic, or type instead.",
+        422,
+        "empty_transcript"
       );
     }
-    if (!data.transcript) {
-      throw new SarvamError("No transcript returned.", 502, "empty_transcript");
-    }
-    return data.transcript.trim();
+    return transcript;
   } catch (err) {
     if (err instanceof SarvamError) throw err;
     if (err instanceof Error && err.name === "AbortError") {
