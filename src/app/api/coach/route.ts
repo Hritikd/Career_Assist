@@ -200,6 +200,13 @@ export async function POST(req: NextRequest) {
       ];
 
       const firstTask = Boolean(body.csAnswer?.trim() && !body.opsAnswer?.trim() && !body.chosenRole);
+      if (firstTask) {
+        const answer = clampText(body.csAnswer, 2000);
+        const time = answer.match(/\b(?:by|at|within|in)\s+(?:noon|midnight|\d{1,2}(?::\d{2})?(?:\s*(?:am|pm|minutes?|hours?))?)\b/i);
+        if (time && /\b(updat\w*|call|check back|follow up)\b/i.test(answer) && !/\b(guarantee|promise|fix(?:ed)?)\b/i.test(answer)) {
+          return NextResponse.json({ reply: `“${time[0]}” gives the owner a time to expect news while you investigate. Six shops mentioned the date format. What would you compare in one failed file and one successful file before recommending a change?` });
+        }
+      }
       const reply = await chatCompletion({
         system: firstTask
           ? "Coach the customer message in this payroll exercise. Quote one exact phrase, explain how it helps or where it risks misleading the owner, then ask one concrete diagnostic question about failed versus successful uploads. A promised update time is not a promised resolution. If the learner requests error text, acknowledge that request; never fault them for not already having the answer. Keep it to two sentences. Only discuss the submitted work; do not infer preferences or recommend a career."
@@ -218,6 +225,13 @@ export async function POST(req: NextRequest) {
       const draft = clampText(body.exerciseDraft, 2500);
       if (!draft.trim()) {
         return NextResponse.json({ error: "exerciseDraft required" }, { status: 400 });
+      }
+      if (role === "support_operations" && /\b(?:no[- ]hint|without (?:a |the )?hint|control group)\b/i.test(draft) && /\b(success|succeed|successful)\b/i.test(draft) && /\b(upload|uploaders)\b/i.test(draft)) {
+        const control = draft.match(/\b(?:no[- ]hint|without (?:a |the )?hint|control group)\b/i)![0];
+        const next = /\b(?:equal|same rate|no (?:lift|difference|improvement))\b/i.test(draft)
+          ? "You also named a result that could weaken your idea. Check each group’s size before interpreting a small difference."
+          : "Add your decision rule: if first-upload success is similar in both groups, investigate another cause before rolling out the hint.";
+        return NextResponse.json({ reply: `Your “${control}” comparison gives you a baseline for first-upload success. ${next}` });
       }
       const duration = body.exerciseDuration === 10 ? 10 : 5;
       const extra =
